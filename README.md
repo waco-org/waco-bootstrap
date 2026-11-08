@@ -29,7 +29,8 @@ $EDITOR settings/type.yml settings/machine.yml
   `uv tool install`. Running it again is harmless.
 - `waco-provision` installs the collection into `.ansible/` in this clone, then runs
   `provision.yml` on this machine. It asks for your sudo password. Options:
-  - `-s <ref>`: a git ref of `waco-org/waco` (default: `main`);
+  - `-s <ref>`: a git ref of `waco-org/waco` (default: `main`, until the collection is on
+    Galaxy, which then becomes the default);
   - `-s git+<url>[,<ref>]`: another git repository;
   - `-s <path>`: a local checkout of the collection;
   - `-s galaxy`: Ansible Galaxy, once the collection is published;

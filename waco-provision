@@ -9,7 +9,8 @@
 # Usage: ./waco-provision [-s source] [-n] [-- ansible-playbook options...]
 #
 #   -s  where the collection comes from:
-#         a git ref of github.com/waco-org/waco (default: main),
+#         a git ref of github.com/waco-org/waco (default: main; Galaxy
+#         will be the default once the collection is published),
 #         a git+URL[,ref] spec, a local checkout of the collection,
 #         or "galaxy" (once the collection is published)
 #   -n  install the collection and check the playbook, but don't run it
@@ -28,7 +29,7 @@ while getopts "s:nh" opt; do
     case $opt in
         s) source=$OPTARG ;;
         n) dry=yes ;;
-        *) sed -n '6,19p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+        *) sed -n '6,20p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
     esac
 done
 shift $((OPTIND - 1))
