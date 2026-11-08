@@ -1,0 +1,14 @@
+---
+# Workstation as Code
+# Copyright Nicola Musatti 2026.
+
+# Settings for this machine only, with the same names as in type.yml. A single
+# value here replaces the type's, a list is added to the type's (duplicates
+# dropped) and a dictionary is merged key by key. Keep this file empty in a
+# machine type's branch.
+#
+# Example:
+#   waco_users: [nick]
+#   waco_packages: [thunderbird]
+#   waco_printing_queues:
+#     - {name: office, uri: "ipp://192.0.2.10/ipp/print"}

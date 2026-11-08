@@ -1,0 +1,45 @@
+---
+# Workstation as Code
+# Copyright Nicola Musatti 2026.
+
+# Applies Waco to this machine. Run through waco-provision.
+#
+# The settings come in two levels, with the same variable names in both:
+# settings/type.yml for the kind of machine and settings/machine.yml for this
+# one. They are merged: in machine.yml a single value replaces the type's,
+# lists are added to the type's (duplicates dropped) and dictionaries are
+# merged key by key. Then the tasks in local/tasks.yml run, if it exists.
+
+- name: Provision this machine with Waco
+  hosts: localhost
+  connection: local
+  vars:
+    # The distro Python, which has the dnf or apt bindings, not the one
+    # Ansible itself runs on.
+    ansible_python_interpreter: auto_silent
+
+  pre_tasks:
+    - name: Read the machine type's settings
+      ansible.builtin.include_vars:
+        file: settings/type.yml
+        name: provision_type
+
+    - name: Read this machine's settings
+      ansible.builtin.include_vars:
+        file: settings/machine.yml
+        name: provision_machine
+
+    - name: Merge the settings
+      ansible.builtin.set_fact:
+        "{{ item.key }}": "{{ item.value }}"
+      loop: "{{ provision_type | combine(provision_machine, recursive=true, list_merge='append_rp') | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+
+  roles:
+    - role: waco_org.waco.workstation
+
+  tasks:
+    - name: Run this machine's own tasks
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/local/tasks.yml"
+      when: (playbook_dir ~ '/local/tasks.yml') is file

@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Workstation as Code
+# Copyright Nicola Musatti 2026.
+
+# in-container - test waco-bootstrap in a fresh distro container.
+#
+# Usage, from the repo root:
+#   podman run --rm -v "$PWD:/src:ro" IMAGE /src/tests/in-container [waco-provision options]
+#
+# Runs as root inside the container: creates a user with passwordless sudo, as
+# on a desktop install, copies the clone into its home, then runs
+# waco-bootstrap and "waco-provision -n" (install the collection and check the
+# playbook) as that user. Extra options go to waco-provision, e.g. -s /coll
+# for a collection checkout mounted at /coll.
+
+set -euo pipefail
+
+if command -v apt-get >/dev/null; then
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+    apt-get install -y -qq sudo >/dev/null
+else
+    dnf install -y -q sudo >/dev/null
+fi
+useradd -m tester
+echo 'tester ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/tester
+cp -r /src /home/tester/waco-bootstrap
+rm -rf /home/tester/waco-bootstrap/.ansible
+chown -R tester: /home/tester/waco-bootstrap
+
+sudo -iu tester bash -c "cd waco-bootstrap && ./waco-bootstrap && ./waco-provision -n $*"

@@ -1,0 +1,41 @@
+---
+# Workstation as Code
+# Copyright Nicola Musatti 2026.
+
+# Settings for the machine type: what every machine of this kind gets. These
+# are Waco's suggested defaults; change them in your clone, or in a branch per
+# machine type. Settings for one machine go in machine.yml. See the README
+# and the waco_org.waco.workstation role for every option.
+
+# Components
+waco_has_docker: false
+waco_has_java: false            # with java_versions, e.g. [25, 21]
+waco_has_maven: false
+waco_has_python: false          # uv, plus each user's python_versions and python_tools
+
+# System settings: mDNS through firewalld (printer and scanner discovery on
+# the Red Hat family) and a persistent journal. waco_sudoers takes drop-ins
+# as {name, content} or {name, src}.
+waco_mdns_firewall: true
+waco_journal_persistent: true
+waco_journal_max_use:
+waco_sudoers: []
+
+# Apps by name in Waco's app catalog, installed from each distro's natural
+# source, e.g. [vscode, dropbox, simple-scan]. See the collection's docs/apps.md.
+waco_apps: []
+
+# Distro packages, for what isn't in the catalog. They must exist on every
+# distro this type runs on.
+waco_packages: []
+
+# Flathub apps installed system-wide, for apps not in the catalog
+waco_flatpak_apps: []
+
+# Print queues: {name, uri, description, location, ppd}
+waco_printing_queues: []
+
+# Users and their own settings (has_rust, apps, flatpak_apps,
+# python_versions, python_tools)
+waco_users: []
+waco_user_settings: {}

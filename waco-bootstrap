@@ -1,42 +1,99 @@
 #!/bin/bash
 
 # Workstation as Code
-# Copyright Nicola Musatti 2020 - 2025.
+# Copyright Nicola Musatti 2020 - 2026.
 
-# waco-bootstrap - Prepares a newly installed system for Waco provisioning
+# waco-bootstrap - install what Waco needs to run: git, uv and ansible-core.
+#
+# Usage: ./waco-bootstrap
+#
+# Run it as the user who will run Waco, not as root: system packages are
+# installed with sudo, ansible-core is installed for this user with
+# "uv tool install". Running it again is harmless.
+#
+# uv comes from the distro where it is packaged (Fedora, EPEL 10), otherwise
+# from its GitHub release, checked against the release's SHA-256 and unpacked
+# into /usr/local/bin. Waco's python role does the same, with the same version.
 
-# Needed by some Ubuntu releases
-export DEBIAN_FRONTEND=noninteractive
+set -euo pipefail
 
-if [[ $(grep 'platform:el8' /etc/os-release) != "" ]]; then
-    echo 'Install Python 3.9 on EL 8'
-    yum install -y python39
+ansible_core_version=2.22.0
+uv_version=0.13.5
+
+sudo=
+if [ "$(id -u)" -ne 0 ]; then
+    sudo=sudo
 fi
 
-echo 'Install Ansible'
-[[ $(grep 'platform:el' /etc/os-release) != "" ]] && yum install -y epel-release
-if [[ $(grep Ubuntu /etc/os-release) != "" ]]; then
-    apt -y update
-    apt -y install ansible git sudo openssh-client
+say() { printf '\n== %s\n' "$*"; }
+
+# shellcheck source=/dev/null
+. /etc/os-release
+major=${VERSION_ID%%.*}
+case " $ID ${ID_LIKE:-} " in
+    *" ubuntu "* | *" debian "*) family=debian ;;
+    *" fedora "* | *" rhel "*) family=redhat ;;
+    *) echo "waco-bootstrap: unsupported distribution: $PRETTY_NAME" >&2; exit 1 ;;
+esac
+
+# The distro Python stays for the system side, so the packages Ansible's
+# modules need on this machine are installed into it here: the dnf or apt
+# bindings, and acl to run tasks as other users.
+say "System packages"
+if [ $family = debian ]; then
+    export DEBIAN_FRONTEND=noninteractive
+    $sudo apt-get update -q
+    $sudo apt-get install -y -q acl ca-certificates curl git python3 python3-apt tar
+    uv_package=$(apt-cache show uv >/dev/null 2>&1 && echo yes || true)
 else
-    yum install -y ansible git sudo
+    packages=(acl git python3 tar)
+    if [ "$ID" = fedora ]; then
+        packages+=(python3-libdnf5)
+    elif ! rpm -q epel-release >/dev/null 2>&1; then
+        # Rocky, Alma and CentOS Stream ship epel-release; RHEL doesn't.
+        $sudo dnf install -y -q epel-release ||
+            $sudo dnf install -y -q "https://dl.fedoraproject.org/pub/epel/epel-release-latest-$major.noarch.rpm"
+    fi
+    $sudo dnf install -y -q "${packages[@]}"
+    uv_package=$(dnf -q list uv >/dev/null 2>&1 && echo yes || true)
 fi
 
-echo 'Create waco user'
-[[ $(getent passwd waco) = "" ]] && useradd -m -s /bin/bash waco
-echo 'waco ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/waco
+say "uv"
+if command -v uv >/dev/null; then
+    echo "Using $(command -v uv) ($(uv --version))"
+elif [ -n "$uv_package" ]; then
+    if [ $family = debian ]; then
+        $sudo apt-get install -y -q uv
+    else
+        $sudo dnf install -y -q uv
+    fi
+else
+    asset="uv-$(uname -m)-unknown-linux-gnu"
+    url="https://github.com/astral-sh/uv/releases/download/$uv_version/$asset.tar.gz"
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    curl -fsSL --retry 3 -o "$tmp/uv.tar.gz" "$url"
+    sha256=$(curl -fsSL --retry 3 "$url.sha256" | cut -d' ' -f1)
+    echo "$sha256  $tmp/uv.tar.gz" | sha256sum -c --quiet
+    $sudo tar -xzf "$tmp/uv.tar.gz" -C /usr/local/bin --strip-components=1 --no-same-owner
+    echo "Installed /usr/local/bin/uv $uv_version"
+fi
+PATH=/usr/local/bin:$PATH
 
-echo 'Create waco ssh key'
-sudo -u waco -i -n bash -c "ssh-keygen -q -t rsa -N '' -f ~/.ssh/id_rsa <<< y"
-cp  ~waco/.ssh/id_rsa.pub ~waco/.ssh/authorized_keys
-#echo '*' >> /home/waco/.ssh/config
-echo 'StrictHostKeyChecking no' > ~waco/.ssh/config
-echo 'UserKnownHostsFile /dev/null' >> ~waco/.ssh/config
-chown -R waco.waco ~waco/.ssh
-chmod -R go-rwx ~waco/.ssh
+# ansible-core 2.22 needs Python 3.13 or later. Where the distro's is older
+# (3.9 on EL9, 3.12 on EL10, 3.10 on Ubuntu 22.04) uv installs one. It's done
+# explicitly because EPEL's uv sets python-downloads to manual.
+say "ansible-core $ansible_core_version"
+if ! uv python find --quiet '>=3.13' >/dev/null 2>&1; then
+    uv python install --no-bin 3.13
+fi
+uv tool install --quiet --python '>=3.13' "ansible-core==$ansible_core_version"
+bin=$(uv tool dir --bin)
+"$bin/ansible" --version | head -1
 
-pushd $(dirname "$0")
-echo 'Copy the waco installation'
-cp -r waco ~waco
-chown -R waco.waco ~waco/waco
-popd
+say "Done"
+echo "Now edit settings/type.yml and settings/machine.yml, then run ./waco-provision."
+case ":$PATH:" in
+    *":$bin:"*) ;;
+    *) echo "Note: $bin is not on your PATH; waco-provision finds Ansible anyway." ;;
+esac
