@@ -21,6 +21,7 @@ ansible_core_version=2.22.0
 uv_version=0.13.5
 
 sudo=
+uv_package=
 if [ "$(id -u)" -ne 0 ]; then
     sudo=sudo
 fi
@@ -44,7 +45,7 @@ if [ $family = debian ]; then
     export DEBIAN_FRONTEND=noninteractive
     $sudo apt-get update -q
     $sudo apt-get install -y -q acl ca-certificates curl git python3 python3-apt tar
-    uv_package=$(apt-cache show uv >/dev/null 2>&1 && echo yes || true)
+    if apt-cache show uv >/dev/null 2>&1; then uv_package=yes; fi
 else
     packages=(acl git python3 tar)
     if [ "$ID" = fedora ]; then
@@ -55,7 +56,7 @@ else
             $sudo dnf install -y -q "https://dl.fedoraproject.org/pub/epel/epel-release-latest-$major.noarch.rpm"
     fi
     $sudo dnf install -y -q "${packages[@]}"
-    uv_package=$(dnf -q list uv >/dev/null 2>&1 && echo yes || true)
+    if dnf -q list uv >/dev/null 2>&1; then uv_package=yes; fi
 fi
 
 say "uv"
