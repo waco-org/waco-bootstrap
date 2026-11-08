@@ -25,7 +25,7 @@ else
 fi
 useradd -m tester
 echo 'tester ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/tester
-cp -r /src /home/tester/waco-bootstrap
+cp -R /src /home/tester/waco-bootstrap
 rm -rf /home/tester/waco-bootstrap/.ansible
 chown -R tester: /home/tester/waco-bootstrap
 
