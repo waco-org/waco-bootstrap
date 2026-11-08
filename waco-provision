@@ -61,6 +61,10 @@ echo "== Collection: $spec"
 ansible-galaxy collection install --force "$spec"
 ansible-galaxy role install --force \
     -r "$ANSIBLE_COLLECTIONS_PATH/ansible_collections/waco_org/waco/requirements.yml"
+# What this machine's own tasks need, e.g. ansible.posix for mounts
+if [ -f "$root/local/requirements.yml" ]; then
+    ansible-galaxy install -r "$root/local/requirements.yml"
+fi
 
 # shellcheck disable=SC2054 # "localhost," is an inline inventory
 playbook=(ansible-playbook -i localhost, "$root/provision.yml")

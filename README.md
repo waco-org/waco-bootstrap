@@ -56,7 +56,8 @@ A machine can add to its type's lists but can't take anything out of them, so a 
 only list what every machine of that kind wants.
 
 Tasks that only make sense on one machine, such as mounting its data disks, go in
-`local/tasks.yml`. They run after Waco.
+`local/tasks.yml`. They run after Waco. Whatever collections they need go in
+`local/requirements.yml`.
 
 ### Keeping your settings in git
 
