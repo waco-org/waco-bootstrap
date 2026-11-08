@@ -1,0 +1,78 @@
+#!/bin/bash
+
+# Workstation as Code
+# Copyright Nicola Musatti 2020 - 2026.
+
+# waco-provision - install the waco_org.waco collection and apply it to this
+# machine, with the settings in settings/type.yml and settings/machine.yml.
+#
+# Usage: ./waco-provision [-s source] [-n] [-- ansible-playbook options...]
+#
+#   -s  where the collection comes from:
+#         a git ref of github.com/waco-org/waco (default: main; Galaxy
+#         will be the default once the collection is published),
+#         a git+URL[,ref] spec, a local checkout of the collection,
+#         or "galaxy" (once the collection is published)
+#   -n  install the collection and check the playbook, but don't run it
+#
+# The collection and its roles go into .ansible/ in this directory, so each
+# clone has its own copy. Run waco-bootstrap first. The sudo password is
+# asked for, unless sudo works without one or you are root.
+
+set -euo pipefail
+
+root=$(cd "$(dirname "$0")" && pwd)
+source=main
+dry=
+
+while getopts "s:nh" opt; do
+    case $opt in
+        s) source=$OPTARG ;;
+        n) dry=yes ;;
+        *) sed -n '6,20p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+    esac
+done
+shift $((OPTIND - 1))
+
+export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+if command -v uv >/dev/null; then
+    PATH="$(uv tool dir --bin):$PATH"
+fi
+if ! command -v ansible-playbook >/dev/null; then
+    echo "waco-provision: ansible-playbook not found; run ./waco-bootstrap first" >&2
+    exit 1
+fi
+
+export ANSIBLE_HOME="$root/.ansible"
+export ANSIBLE_COLLECTIONS_PATH="$ANSIBLE_HOME/collections"
+export ANSIBLE_ROLES_PATH="$ANSIBLE_HOME/roles"
+
+if [ "$source" = galaxy ]; then
+    spec=waco_org.waco
+elif [ -f "$source/galaxy.yml" ]; then
+    spec=$(cd "$source" && pwd)
+elif [[ $source == git+* ]]; then
+    spec=$source
+else
+    spec="git+https://github.com/waco-org/waco.git,$source"
+fi
+
+echo "== Collection: $spec"
+ansible-galaxy collection install --force "$spec"
+ansible-galaxy role install --force \
+    -r "$ANSIBLE_COLLECTIONS_PATH/ansible_collections/waco_org/waco/requirements.yml"
+# What this machine's own tasks need, e.g. ansible.posix for mounts
+if [ -f "$root/local/requirements.yml" ]; then
+    ansible-galaxy install -r "$root/local/requirements.yml"
+fi
+
+# shellcheck disable=SC2054 # "localhost," is an inline inventory
+playbook=(ansible-playbook -i localhost, "$root/provision.yml")
+if [ -n "$dry" ]; then
+    "${playbook[@]}" --syntax-check "$@"
+    exit
+fi
+if [ "$(id -u)" -ne 0 ] && ! sudo -n true 2>/dev/null; then
+    playbook+=(--ask-become-pass)
+fi
+"${playbook[@]}" "$@"

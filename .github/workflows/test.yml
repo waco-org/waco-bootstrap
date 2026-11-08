@@ -1,0 +1,43 @@
+---
+# Workstation as Code
+# Copyright Nicola Musatti 2026.
+
+name: test
+
+# waco-bootstrap and "waco-provision -n" in a fresh container of every distro
+# Waco supports, with the collection from waco-org/waco main. A real
+# provisioning run needs a VM, and is not part of this workflow.
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 7 1 * *"
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - run: shellcheck waco-bootstrap waco-provision tests/in-container
+      - run: pipx run yamllint .
+
+  bootstrap:
+    name: bootstrap (${{ matrix.image }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - quay.io/rockylinux/rockylinux:10
+          - quay.io/rockylinux/rockylinux:9
+          - registry.fedoraproject.org/fedora:44
+          - registry.fedoraproject.org/fedora:43
+          - docker.io/library/ubuntu:26.04
+          - docker.io/library/ubuntu:24.04
+          - docker.io/library/ubuntu:22.04
+          - quay.io/centos/centos:stream10
+          - quay.io/centos/centos:stream9
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker run --rm -v "$PWD:/src:ro" "${{ matrix.image }}" /src/tests/in-container
