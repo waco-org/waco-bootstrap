@@ -11,7 +11,7 @@
 waco_has_docker: false
 waco_has_java: false            # with java_versions, e.g. [25, 21]
 waco_has_maven: false
-waco_has_python: false          # uv, plus each user's python_versions and python_tools
+waco_has_python: false          # uv, system-wide
 
 # System settings: mDNS through firewalld (printer and scanner discovery on
 # the Red Hat family) and a persistent journal. waco_sudoers takes drop-ins
@@ -35,7 +35,6 @@ waco_flatpak_apps: []
 # Print queues: {name, uri, description, location, ppd}
 waco_printing_queues: []
 
-# Users and their own settings (has_rust, apps, flatpak_apps,
-# python_versions, python_tools)
+# Users: names, or dicts with uid, gid, groups, admin, shell, comment and
+# create_home. Waco leaves their home directories alone.
 waco_users: []
-waco_user_settings: {}
