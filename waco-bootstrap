@@ -35,6 +35,10 @@ if [ "$(id -u)" -eq 0 ]; then
     echo "waco-bootstrap: run it as your own user, not as root; it uses sudo where it must" >&2
     exit 1
 fi
+if [ "$(git -C "$root" rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
+    echo "waco-bootstrap: $root is a shallow clone; run \"git -C $root fetch --unshallow\" first" >&2
+    exit 1
+fi
 
 say() { printf '\n== %s\n' "$*"; }
 
