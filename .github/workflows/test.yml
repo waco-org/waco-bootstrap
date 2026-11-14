@@ -39,5 +39,9 @@ jobs:
           - quay.io/centos/centos:stream10
           - quay.io/centos/centos:stream9
     steps:
+      # The full history: waco's copy is made from a git bundle, which a shallow
+      # clone can't produce.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - run: docker run --rm -v "$PWD:/src:ro" "${{ matrix.image }}" /src/tests/in-container

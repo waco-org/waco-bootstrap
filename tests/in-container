@@ -8,25 +8,50 @@
 # Usage, from the repo root:
 #   podman run --rm -v "$PWD:/src:ro" IMAGE /src/tests/in-container [waco-provision options]
 #
-# Runs as root inside the container: creates a user with passwordless sudo, as
-# on a desktop install, copies the clone into its home, then runs
+# Runs as root inside the container: creates a user with sudo, as on a desktop
+# install, copies the clone into its ~/.waco (committing any uncommitted
+# changes there, since waco only uses committed state), then runs
 # waco-bootstrap and "waco-provision -n" (install the collection and check the
-# playbook) as that user. Extra options go to waco-provision, e.g. -s /coll
-# for a collection checkout mounted at /coll.
+# playbook) as that user, and checks the waco account. Extra options go to
+# waco-provision, e.g. -s /coll for a collection checkout mounted at /coll.
 
 set -euo pipefail
 
 if command -v apt-get >/dev/null; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
-    apt-get install -y -qq sudo >/dev/null
+    apt-get install -y -qq git sudo >/dev/null
 else
-    dnf install -y -q sudo >/dev/null
+    dnf install -y -q git sudo >/dev/null
 fi
 useradd -m tester
 echo 'tester ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/tester
-cp -R /src /home/tester/waco-bootstrap
-rm -rf /home/tester/waco-bootstrap/.ansible
-chown -R tester: /home/tester/waco-bootstrap
+cp -R /src /home/tester/.waco
+rm -rf /home/tester/.waco/.ansible
+chown -R tester: /home/tester/.waco
+chmod 700 /home/tester
 
-sudo -iu tester bash -c "cd waco-bootstrap && ./waco-bootstrap && ./waco-provision -n $*"
+sudo -iu tester bash -s -- "$@" <<'SCRIPT'
+set -euo pipefail
+cd .waco
+if [ -n "$(git status --porcelain)" ]; then
+    git add -A
+    git -c user.name=test -c user.email=test@example.org commit -qm "Uncommitted changes under test"
+fi
+./waco-bootstrap
+./waco-provision -n "$@"
+./waco-bootstrap >/dev/null  # again: harmless
+SCRIPT
+
+echo "== Checks"
+fail() { echo "FAIL: $*" >&2; exit 1; }
+uid=$(id -u waco)
+[ "$uid" -lt 1000 ] || fail "waco has uid $uid, not a system uid"
+[ "$(getent passwd waco | cut -d: -f6)" = /var/lib/waco ] || fail "waco's home is not /var/lib/waco"
+case $(getent shadow waco | cut -d: -f2) in '!'* | '*'*) ;; *) fail "waco's password is not locked" ;; esac
+[ "$(stat -c %a /etc/sudoers.d/waco)" = 440 ] || fail "/etc/sudoers.d/waco is not mode 0440"
+[ "$(stat -c %a /home/tester)" = 700 ] || fail "tester's home mode changed"
+mine=$(git -C /home/tester/.waco -c safe.directory='*' rev-parse HEAD)
+waco=$(sudo -u waco git -C /var/lib/waco/waco-bootstrap rev-parse HEAD)
+[ "$mine" = "$waco" ] || fail "waco's copy is at $waco, tester's clone at $mine"
+echo "waco: uid $uid, locked, sudoers 0440, copy at ${waco:0:7} like tester's clone"
